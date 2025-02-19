@@ -19,8 +19,8 @@ public class SuperLoggerWindowEditor : EditorWindow
     private bool showDebugs = true;
     private bool autoScroll = true;
 
-    private bool clearOnPlay = false;
-    private bool clearOnBuild = false;
+    private bool clearOnPlay = true;
+    private bool clearOnBuild = true;
     private bool clearOnRecompile = false;
 
     private Dictionary<string, int> groupCounts = new Dictionary<string, int>();
@@ -113,12 +113,12 @@ public class SuperLoggerWindowEditor : EditorWindow
 
     private void LoadLogGroupData()
     {
-        logGroupData = AssetDatabase.LoadAssetAtPath<LogGroupData>("Assets/LogGroups.asset");
+        logGroupData = AssetDatabase.LoadAssetAtPath<LogGroupData>("Assets/SLoggerGenerated/LogGroups.asset");
 
         if (logGroupData == null)
         {
             logGroupData = CreateInstance<LogGroupData>();
-            AssetDatabase.CreateAsset(logGroupData, "Assets/LogGroups.asset");
+            AssetDatabase.CreateAsset(logGroupData, "Assets/SLoggerGenerated/LogGroups.asset");
             AssetDatabase.SaveAssets();
             Debug.Log("Created new LogGroups.asset");
         }
@@ -136,12 +136,12 @@ public class SuperLoggerWindowEditor : EditorWindow
 
         if (condition.StartsWith("[SLogger]["))
         {
-            int start = condition.IndexOf("[SLogger][") + 8;
+            int start = condition.IndexOf("[SLogger][") + 10;
             int end = condition.IndexOf("]", start);
             if (end > start)
             {
                 group = condition.Substring(start, end - start);
-                condition = condition.Substring(end + 2);
+                condition = condition.Substring(end + 1);
             }
         }
 
@@ -149,7 +149,7 @@ public class SuperLoggerWindowEditor : EditorWindow
 
         if (!logGroupData.Groups.Contains(group))
         {
-            logGroupData.AddGroup(group);
+            logGroupData.AddGroup(group, Color.white); // Add default color
             SaveLogGroups();
         }
 
@@ -323,27 +323,15 @@ public class SuperLoggerWindowEditor : EditorWindow
                 try
                 {
                     EditorGUILayout.LabelField("Log Details", EditorStyles.boldLabel);
+
                     EditorGUILayout.LabelField("Message:");
-                    detailScrollPosition = EditorGUILayout.BeginScrollView(detailScrollPosition, GUILayout.Height(100));
-                    try
-                    {
-                        EditorGUILayout.TextArea(selectedLogEntry.message, GUILayout.ExpandHeight(true));
-                    }
-                    finally
-                    {
-                        EditorGUILayout.EndScrollView();
-                    }
+                    EditorGUILayout.TextArea(selectedLogEntry.message, GUILayout.ExpandHeight(true));
+
                     EditorGUILayout.LabelField("Type:", selectedLogEntry.type.ToString());
+
                     EditorGUILayout.LabelField("Stack Trace:");
-                    detailScrollPosition = EditorGUILayout.BeginScrollView(detailScrollPosition, GUILayout.Height(100));
-                    try
-                    {
-                        EditorGUILayout.TextArea(selectedLogEntry.stackTrace, GUILayout.ExpandHeight(true));
-                    }
-                    finally
-                    {
-                        EditorGUILayout.EndScrollView();
-                    }
+                    DrawStackTrace(selectedLogEntry.stackTrace);
+
                     EditorGUILayout.LabelField("Group:", selectedLogEntry.group);
                 }
                 finally
@@ -357,11 +345,50 @@ public class SuperLoggerWindowEditor : EditorWindow
             }
         }
     }
+
+    private void DrawStackTrace(string stackTrace)
+    {
+        string[] stackTraceLines = stackTrace.Split('\n');
+        foreach (var line in stackTraceLines)
+        {
+            if (string.IsNullOrEmpty(line)) continue;
+
+            var match = System.Text.RegularExpressions.Regex.Match(line, @"\(at (.+):(\d+)\)");
+            if (match.Success)
+            {
+                string filePath = match.Groups[1].Value;
+                int lineNumber = int.Parse(match.Groups[2].Value);
+
+                if (GUILayout.Button(line, EditorStyles.linkLabel))
+                {
+                    OpenStackTraceLine(filePath, lineNumber);
+                }
+            }
+            else
+            {
+                EditorGUILayout.LabelField(line);
+            }
+        }
+    }
+
+    private void OpenStackTraceLine(string filePath, int lineNumber)
+    {
+        var asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(filePath);
+        if (asset != null)
+        {
+            AssetDatabase.OpenAsset(asset, lineNumber);
+        }
+        else
+        {
+            Debug.LogWarning($"Unable to load asset at path: {filePath}");
+        }
+    }
 }
 
 public class GroupManagerWindow : EditorWindow
 {
     private string newGroupName = "";
+    private Color newGroupColor = Color.white;
     private LogGroupData logGroupData;
 
     public static void ShowWindow(LogGroupData logGroupData)
@@ -376,14 +403,16 @@ public class GroupManagerWindow : EditorWindow
         try
         {
             newGroupName = EditorGUILayout.TextField("New Group:", newGroupName);
+            newGroupColor = EditorGUILayout.ColorField("Group Color:", newGroupColor);
             if (GUILayout.Button("Add Group"))
             {
                 if (!string.IsNullOrEmpty(newGroupName) && !logGroupData.Groups.Contains(newGroupName))
                 {
-                    logGroupData.AddGroup(newGroupName);
+                    logGroupData.AddGroup(newGroupName, newGroupColor);
                     SaveLogGroups();
                     logGroupData.GenerateStaticClass();
                     newGroupName = "";
+                    newGroupColor = Color.white;
                     Repaint();
                 }
             }

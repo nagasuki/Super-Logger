@@ -3,35 +3,66 @@ using System.Collections.Generic;
 using System;
 using System.IO;
 
-
-
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
-[CreateAssetMenu(fileName = "LogGroups", menuName = "CustomConsole/Log Groups", order = 1)]
+[Serializable]
+public class GroupColorEntry
+{
+    public string Group;
+    public Color Color;
+}
+
 public class LogGroupData : ScriptableObject
 {
     [SerializeField, HideInInspector] private List<string> groups = new List<string> { "All", "General" };
+    [SerializeField, HideInInspector]
+    private List<GroupColorEntry> groupColorEntries = new List<GroupColorEntry>
+    {
+        new GroupColorEntry { Group = "All", Color = Color.white },
+        new GroupColorEntry { Group = "General", Color = Color.white }
+    };
 
     public IReadOnlyList<string> Groups => groups.AsReadOnly();
+    public IReadOnlyList<GroupColorEntry> GroupColorEntries => groupColorEntries.AsReadOnly();
 
 #if UNITY_EDITOR
     public void GenerateStaticClass()
     {
-        string path = "Assets/Scripts/Generated/LogGroups.cs";
+        string path = "Assets/SLoggerGenerated/SLogGroups.cs";
+        Directory.CreateDirectory(Path.GetDirectoryName(path));
         using (StreamWriter writer = new StreamWriter(path))
         {
-            writer.WriteLine("// Auto-generated LogGroups class");
-            writer.WriteLine("public static class LogGroups");
+            writer.WriteLine("// Auto-generated LogGroups class for Super Logger");
+            writer.WriteLine("using System.ComponentModel;");
+            writer.WriteLine("");
+            writer.WriteLine("namespace PugDev.SuperLogger");
+            writer.WriteLine("{");
+            writer.WriteLine("public static class SLogGroups");
             writer.WriteLine("{");
 
             foreach (var group in groups)
             {
                 string safeGroupName = group.Replace(" ", "_");
-                writer.WriteLine($"    public const string {safeGroupName} = \"{group}\";");
+                var entry = groupColorEntries.Find(e => e.Group == group);
+                string color = ColorUtility.ToHtmlStringRGBA(entry.Color);
+
+                if (safeGroupName == "All")
+                {
+                    writer.WriteLine($"    private const string {safeGroupName} = \"{group}\";");
+                    writer.WriteLine($"    [EditorBrowsable(EditorBrowsableState.Never)]");
+                    writer.WriteLine($"    private const string {safeGroupName}_Color = \"#{color}\";");
+                }
+                else
+                {
+                    writer.WriteLine($"    public const string {safeGroupName} = \"{group}\";");
+                    writer.WriteLine($"    [EditorBrowsable(EditorBrowsableState.Never)]");
+                    writer.WriteLine($"    public const string {safeGroupName}_Color = \"#{color}\";");
+                }
             }
 
+            writer.WriteLine("}");
             writer.WriteLine("}");
         }
         UnityEditor.AssetDatabase.Refresh();
@@ -39,11 +70,12 @@ public class LogGroupData : ScriptableObject
 #endif
 
     // Method to add a group
-    public void AddGroup(string group)
+    public void AddGroup(string group, Color color)
     {
         if (!groups.Contains(group))
         {
             groups.Add(group);
+            groupColorEntries.Add(new GroupColorEntry { Group = group, Color = color });
         }
     }
 
@@ -53,6 +85,7 @@ public class LogGroupData : ScriptableObject
         if (groups.Contains(group) && group != "All" && group != "General")
         {
             groups.Remove(group);
+            groupColorEntries.RemoveAll(e => e.Group == group);
         }
     }
 
@@ -61,7 +94,9 @@ public class LogGroupData : ScriptableObject
     {
         if (index >= 0 && index < groups.Count && groups[index] != "All" && groups[index] != "General")
         {
+            string group = groups[index];
             groups.RemoveAt(index);
+            groupColorEntries.RemoveAll(e => e.Group == group);
         }
     }
 }
@@ -82,6 +117,20 @@ public class LogGroupDataEditor : Editor
             EditorGUILayout.TextField(group);
         }
         EditorGUI.EndDisabledGroup();
+
+        EditorGUILayout.Space();
+
+        EditorGUILayout.LabelField("Group Colors", EditorStyles.boldLabel);
+        foreach (var entry in logGroupData.GroupColorEntries)
+        {
+            Color newColor = EditorGUILayout.ColorField(entry.Group, entry.Color);
+            if (newColor != entry.Color)
+            {
+                Undo.RecordObject(logGroupData, "Change Group Color");
+                entry.Color = newColor;
+                EditorUtility.SetDirty(logGroupData);
+            }
+        }
     }
 }
 #endif
