@@ -66,17 +66,6 @@ public class LogGroupData : ScriptableObject
     }
 }
 
-[Serializable]
-public enum LogCategory
-{
-    General,
-    UI,
-    Network,
-    Database,
-    Audio,
-    Gameplay
-}
-
 #if UNITY_EDITOR
 [CustomEditor(typeof(LogGroupData))]
 public class LogGroupDataEditor : Editor
