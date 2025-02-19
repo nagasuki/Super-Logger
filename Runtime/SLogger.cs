@@ -4,16 +4,16 @@ public class SLogger
 {
     public static void LogDebug(string message, string category = "General")
     {
-        Debug.Log($"[SLogger][{category}] {message}");
+        Debug.Log($"[{category}] {message}");
     }
 
     public static void LogWarning(string message, string category = "General")
     {
-        Debug.LogWarning($"[SLogger][{category}] {message}");
+        Debug.LogWarning($"[{category}] {message}");
     }
 
     public static void LogError(string message, string category = "General")
     {
-        Debug.LogError($"[SLogger][{category}] {message}");
+        Debug.LogError($"[{category}] {message}");
     }
 }

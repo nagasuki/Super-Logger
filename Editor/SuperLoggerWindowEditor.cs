@@ -186,7 +186,7 @@ public class SuperLoggerWindowEditor : EditorWindow
             }
 
             // Multi-select dropdown for clear options
-            if (GUILayout.Button("Clear Options", EditorStyles.toolbarPopup, GUILayout.Width(150)))
+            if (GUILayout.Button("", EditorStyles.toolbarPopup, GUILayout.Width(20)))
             {
                 GenericMenu menu = new GenericMenu();
                 menu.AddItem(new GUIContent("Clear on Play"), clearOnPlay, () => ToggleClearOption(ref clearOnPlay));
@@ -382,6 +382,7 @@ public class GroupManagerWindow : EditorWindow
                 {
                     logGroupData.AddGroup(newGroupName);
                     SaveLogGroups();
+                    logGroupData.GenerateStaticClass();
                     newGroupName = "";
                     Repaint();
                 }
