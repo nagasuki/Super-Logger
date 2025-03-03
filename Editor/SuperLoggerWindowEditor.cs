@@ -5,6 +5,7 @@ using UnityEditor.Build.Reporting;
 using UnityEditor.Compilation;
 using System.Collections.Generic;
 using System.Linq;
+using PugDev.SuperLogger;
 
 public class SuperLoggerWindowEditor : EditorWindow
 {
@@ -32,7 +33,9 @@ public class SuperLoggerWindowEditor : EditorWindow
     private Texture2D warningIcon;
     private Texture2D debugIcon;
 
-    private LogEntry selectedLogEntry;
+    private LogEntry selectedLog;
+    private float lastClickTime = 0f;
+    private const float doubleClickTime = 0.3f;
 
     private class LogEntry
     {
@@ -107,20 +110,20 @@ public class SuperLoggerWindowEditor : EditorWindow
         logs.Clear();
         groupCounts.Clear();
         errorCount = warningCount = debugCount = 0;
-        selectedLogEntry = null;
+        selectedLog = null;
         Repaint();
     }
 
     private void LoadLogGroupData()
     {
-        logGroupData = AssetDatabase.LoadAssetAtPath<LogGroupData>("Assets/SLoggerGenerated/LogGroups.asset");
+        logGroupData = AssetDatabase.LoadAssetAtPath<LogGroupData>("Assets/SLoggerGenerated/SLogGroups.asset");
 
         if (logGroupData == null)
         {
             logGroupData = CreateInstance<LogGroupData>();
-            AssetDatabase.CreateAsset(logGroupData, "Assets/SLoggerGenerated/LogGroups.asset");
+            AssetDatabase.CreateAsset(logGroupData, "Assets/SLoggerGenerated/SLogGroups.asset");
             AssetDatabase.SaveAssets();
-            Debug.Log("Created new LogGroups.asset");
+            Debug.Log("Created new SLogGroups.asset");
         }
     }
 
@@ -145,7 +148,11 @@ public class SuperLoggerWindowEditor : EditorWindow
             }
         }
 
-        logs.Add(new LogEntry(condition, type, stackTrace, group));
+        var entry = logGroupData.GroupColorEntries.FirstOrDefault(e => e.Group == group);
+        string color = ColorUtility.ToHtmlStringRGBA(entry?.Color ?? Color.white);
+        string richTextCondition = $"<color=#{color}>[{group}] {condition}</color>";
+
+        logs.Add(new LogEntry(richTextCondition, type, stackTrace, group));
 
         if (!logGroupData.Groups.Contains(group))
         {
@@ -195,6 +202,11 @@ public class SuperLoggerWindowEditor : EditorWindow
                 menu.DropDown(new Rect(0, 20, 0, 0));
             }
 
+            if (GUILayout.Button("Test Log", EditorStyles.toolbarButton, GUILayout.Width(100)))
+            {
+                SLogger.LogDebug($"Test Hello World!!", SLogGroups.Network);
+            }
+
             DrawSearchBar();
 
             GUILayout.FlexibleSpace();
@@ -232,22 +244,23 @@ public class SuperLoggerWindowEditor : EditorWindow
             GUIStyle searchBarStyle = new GUIStyle("ToolbarSearchTextField");
             GUIStyle searchCancelStyle = new GUIStyle("ToolbarSearchCancelButton");
 
-            // Add search icon
+            Rect searchRect = GUILayoutUtility.GetRect(200, 20, searchBarStyle);
+            searchRect.width = Mathf.Max(searchRect.width, 200);
+
             GUIContent searchIconContent = EditorGUIUtility.IconContent("Search Icon");
-            searchBarStyle.fixedHeight = 20;
-            searchBarStyle.stretchHeight = true;
+            Rect iconRect = new Rect(searchRect.x + 5, searchRect.y + 2, 16, 16);
+            GUI.Label(iconRect, searchIconContent);
+
             searchBarStyle.padding = new RectOffset(20, 0, 0, 0);
 
-            // Draw search bar with icon
-            Rect searchRect = GUILayoutUtility.GetRect(200, 15, searchBarStyle);
-            GUI.Label(new Rect(searchRect.x + 5, searchRect.y + 2, 16, 16), searchIconContent);
             searchQuery = GUI.TextField(searchRect, searchQuery, searchBarStyle);
-            GUILayout.ExpandWidth(true);
 
-            // Draw clear button (cross icon) if there is text in the search field
+            EditorGUIUtility.AddCursorRect(searchRect, MouseCursor.Text);
+
             if (!string.IsNullOrEmpty(searchQuery))
             {
-                if (GUILayout.Button("", searchCancelStyle))
+                Rect cancelRect = new Rect(searchRect.x + searchRect.width - 18, searchRect.y + 2, 16, 16);
+                if (GUI.Button(cancelRect, GUIContent.none, searchCancelStyle))
                 {
                     searchQuery = "";
                     GUI.FocusControl(null);
@@ -260,13 +273,15 @@ public class SuperLoggerWindowEditor : EditorWindow
         }
     }
 
+
     private void DrawLogList()
     {
         scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
         try
         {
-            foreach (var log in logs)
+            for (int i = 0; i < logs.Count; i++)
             {
+                var log = logs[i];
                 if ((log.type == LogType.Error && showErrors) ||
                     (log.type == LogType.Warning && showWarnings) ||
                     (log.type == LogType.Log && showDebugs))
@@ -277,12 +292,12 @@ public class SuperLoggerWindowEditor : EditorWindow
                     if (!string.IsNullOrEmpty(searchQuery) && !log.message.ToLower().Contains(searchQuery.ToLower()))
                         continue;
 
-                    GUIStyle style = EditorStyles.label;
+                    GUIStyle style = new GUIStyle(EditorStyles.label) { richText = true };
                     Texture2D icon = debugIcon;
 
                     if (log.type == LogType.Error)
                     {
-                        style = EditorStyles.boldLabel;
+                        style = new GUIStyle(EditorStyles.boldLabel) { richText = true };
                         icon = errorIcon;
                     }
                     else if (log.type == LogType.Warning)
@@ -295,9 +310,12 @@ public class SuperLoggerWindowEditor : EditorWindow
                     {
                         if (GUILayout.Button(icon, GUILayout.Width(20), GUILayout.Height(20)))
                         {
-                            selectedLogEntry = log;
+                            HandleLogClick(log);
                         }
-                        EditorGUILayout.LabelField($"[{log.group}] {log.message}", style);
+                        if (GUILayout.Button(log.message, style))
+                        {
+                            HandleLogClick(log);
+                        }
                     }
                     finally
                     {
@@ -312,27 +330,76 @@ public class SuperLoggerWindowEditor : EditorWindow
         }
     }
 
+    private void HandleLogClick(LogEntry log)
+    {
+        float clickTime = Time.realtimeSinceStartup;
+
+        if (selectedLog == log && (clickTime - lastClickTime) < doubleClickTime)
+        {
+            OpenScriptFromStackTrace(log.stackTrace);
+        }
+        else
+        {
+            selectedLog = log;
+        }
+
+        lastClickTime = clickTime;
+    }
+
+    private void OpenScriptFromStackTrace(string stackTrace)
+    {
+        if (string.IsNullOrEmpty(stackTrace)) return;
+
+        string[] lines = stackTrace.Split('\n');
+
+        if (lines.Length < 2) return;
+
+        string targetLine = lines[2];
+        string path = ExtractPathFromStackTrace(targetLine, out int lineNumber);
+
+        if (!string.IsNullOrEmpty(path))
+        {
+            UnityEditorInternal.InternalEditorUtility.OpenFileAtLineExternal(path, lineNumber);
+        }
+    }
+
+    private string ExtractPathFromStackTrace(string stackTraceLine, out int lineNumber)
+    {
+        lineNumber = 0;
+
+        int startIndex = stackTraceLine.IndexOf(" (at ");
+        if (startIndex == -1) return null;
+
+        startIndex += 5;
+        int endIndex = stackTraceLine.IndexOf(")", startIndex);
+        if (endIndex == -1) return null;
+
+        string filePathWithLine = stackTraceLine.Substring(startIndex, endIndex - startIndex);
+        string[] parts = filePathWithLine.Split(':');
+
+        if (parts.Length == 2 && int.TryParse(parts[1], out lineNumber))
+        {
+            return parts[0];
+        }
+
+        return null;
+    }
+
+
     private void DrawLogDetails()
     {
-        if (selectedLogEntry != null)
+        if (selectedLog != null)
         {
-            detailScrollPosition = EditorGUILayout.BeginScrollView(detailScrollPosition, GUILayout.Height(200));
+            detailScrollPosition = EditorGUILayout.BeginScrollView(detailScrollPosition, GUILayout.ExpandHeight(true), GUILayout.ExpandWidth(true));
             try
             {
-                EditorGUILayout.BeginVertical("box");
+                EditorGUILayout.BeginVertical("box", GUILayout.ExpandHeight(false), GUILayout.ExpandWidth(true), GUILayout.MaxHeight(20));
                 try
                 {
-                    EditorGUILayout.LabelField("Log Details", EditorStyles.boldLabel);
-
-                    EditorGUILayout.LabelField("Message:");
-                    EditorGUILayout.TextArea(selectedLogEntry.message, GUILayout.ExpandHeight(true));
-
-                    EditorGUILayout.LabelField("Type:", selectedLogEntry.type.ToString());
-
-                    EditorGUILayout.LabelField("Stack Trace:");
-                    DrawStackTrace(selectedLogEntry.stackTrace);
-
-                    EditorGUILayout.LabelField("Group:", selectedLogEntry.group);
+                    GUIStyle style = new GUIStyle(EditorStyles.label) { richText = true };
+                    EditorGUILayout.LabelField(selectedLog.message, style, GUILayout.ExpandWidth(true));
+                    EditorGUILayout.Space(5);
+                    DrawStackTrace(selectedLog.stackTrace);
                 }
                 finally
                 {
@@ -359,6 +426,8 @@ public class SuperLoggerWindowEditor : EditorWindow
                 string filePath = match.Groups[1].Value;
                 int lineNumber = int.Parse(match.Groups[2].Value);
 
+                Rect rect = new Rect(0, 0, 0, 0);
+                EditorGUIUtility.AddCursorRect(rect, MouseCursor.Link);
                 if (GUILayout.Button(line, EditorStyles.linkLabel))
                 {
                     OpenStackTraceLine(filePath, lineNumber);
@@ -435,6 +504,7 @@ public class GroupManagerWindow : EditorWindow
                     {
                         logGroupData.RemoveGroupAt(i);
                         SaveLogGroups();
+                        logGroupData.GenerateStaticClass();
                         Repaint();
                         break;
                     }

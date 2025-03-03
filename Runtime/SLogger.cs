@@ -9,9 +9,11 @@ namespace PugDev.SuperLogger
         /// </summary>
         /// <param name="message">The message to log.</param>
         /// <param name="category">The category of the message. Defaults to "General".</param>
-        public static void LogDebug(string message, string category = "General")
+        public static void LogDebug(string message, string category = "General:FFFFFF")
         {
-            Debug.Log($"[SLogger][{category}] {message}");
+            var groupMessage = category.Split(":")[0];
+            var groupColor = category.Split(":")[1];
+            Debug.Log($"[SLogger]<color=#{groupColor}>[{groupMessage}]</color> {message}");
         }
 
         /// <summary>
@@ -19,9 +21,11 @@ namespace PugDev.SuperLogger
         /// </summary>
         /// <param name="message">The message to log.</param>
         /// <param name="category">The category of the message. Defaults to "General".</param>
-        public static void LogWarning(string message, string category = "General")
+        public static void LogWarning(string message, string category = "General:FFFFFF")
         {
-            Debug.LogWarning($"[SLogger][{category}] {message}");
+            var groupMessage = category.Split(":")[0];
+            var groupColor = category.Split(":")[1];
+            Debug.LogWarning($"[SLogger]<color=#{groupColor}>[{groupMessage}]</color> {message}");
         }
 
         /// <summary>
@@ -29,9 +33,11 @@ namespace PugDev.SuperLogger
         /// </summary>
         /// <param name="message">The message to log.</param>
         /// <param name="category">The category of the message. Defaults to "General".</param>
-        public static void LogError(string message, string category = "General")
+        public static void LogError(string message, string category = "General:FFFFFF")
         {
-            Debug.LogError($"[SLogger][{category}] {message}");
+            var groupMessage = category.Split(":")[0];
+            var groupColor = category.Split(":")[1];
+            Debug.LogError($"[SLogger]<color=#{groupColor}>[{groupMessage}]</color> {message}");
         }
     }
 }

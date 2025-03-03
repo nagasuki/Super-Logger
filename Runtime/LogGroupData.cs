@@ -34,7 +34,7 @@ public class LogGroupData : ScriptableObject
         Directory.CreateDirectory(Path.GetDirectoryName(path));
         using (StreamWriter writer = new StreamWriter(path))
         {
-            writer.WriteLine("// Auto-generated LogGroups class for Super Logger");
+            writer.WriteLine("// Auto-generated SLogGroups class for Super Logger");
             writer.WriteLine("using System.ComponentModel;");
             writer.WriteLine("");
             writer.WriteLine("namespace PugDev.SuperLogger");
@@ -50,15 +50,11 @@ public class LogGroupData : ScriptableObject
 
                 if (safeGroupName == "All")
                 {
-                    writer.WriteLine($"    private const string {safeGroupName} = \"{group}\";");
-                    writer.WriteLine($"    [EditorBrowsable(EditorBrowsableState.Never)]");
-                    writer.WriteLine($"    private const string {safeGroupName}_Color = \"#{color}\";");
+                    writer.WriteLine($"    private const string {safeGroupName} = \"{group}:{color}\";");
                 }
                 else
                 {
-                    writer.WriteLine($"    public const string {safeGroupName} = \"{group}\";");
-                    writer.WriteLine($"    [EditorBrowsable(EditorBrowsableState.Never)]");
-                    writer.WriteLine($"    public const string {safeGroupName}_Color = \"#{color}\";");
+                    writer.WriteLine($"    public const string {safeGroupName} = \"{group}:{color}\";");
                 }
             }
 
