@@ -50,11 +50,11 @@ public class LogGroupData : ScriptableObject
 
                 if (safeGroupName == "All")
                 {
-                    writer.WriteLine($"    private const string {safeGroupName} = \"{group}:{color}\";");
+                    writer.WriteLine($"    private const string {safeGroupName} = \"{group}\";");
                 }
                 else
                 {
-                    writer.WriteLine($"    public const string {safeGroupName} = \"{group}:{color}\";");
+                    writer.WriteLine($"    public const string {safeGroupName} = \"{group}\";");
                 }
             }
 

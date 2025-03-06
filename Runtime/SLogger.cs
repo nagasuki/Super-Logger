@@ -9,11 +9,9 @@ namespace PugDev.SuperLogger
         /// </summary>
         /// <param name="message">The message to log.</param>
         /// <param name="category">The category of the message. Defaults to "General".</param>
-        public static void LogDebug(string message, string category = "General:FFFFFF")
+        public static void LogDebug(string message, string category = "General")
         {
-            var groupMessage = category.Split(":")[0];
-            var groupColor = category.Split(":")[1];
-            Debug.Log($"[SLogger]<color=#{groupColor}>[{groupMessage}]</color> {message}");
+            Debug.Log($"[SLogger][{category}] {message}");
         }
 
         /// <summary>
@@ -21,11 +19,9 @@ namespace PugDev.SuperLogger
         /// </summary>
         /// <param name="message">The message to log.</param>
         /// <param name="category">The category of the message. Defaults to "General".</param>
-        public static void LogWarning(string message, string category = "General:FFFFFF")
+        public static void LogWarning(string message, string category = "General")
         {
-            var groupMessage = category.Split(":")[0];
-            var groupColor = category.Split(":")[1];
-            Debug.LogWarning($"[SLogger]<color=#{groupColor}>[{groupMessage}]</color> {message}");
+            Debug.LogWarning($"[SLogger][{category}] {message}");
         }
 
         /// <summary>
@@ -33,11 +29,9 @@ namespace PugDev.SuperLogger
         /// </summary>
         /// <param name="message">The message to log.</param>
         /// <param name="category">The category of the message. Defaults to "General".</param>
-        public static void LogError(string message, string category = "General:FFFFFF")
+        public static void LogError(string message, string category = "General")
         {
-            var groupMessage = category.Split(":")[0];
-            var groupColor = category.Split(":")[1];
-            Debug.LogError($"[SLogger]<color=#{groupColor}>[{groupMessage}]</color> {message}");
+            Debug.LogError($"[SLogger][{category}] {message}");
         }
     }
 }
