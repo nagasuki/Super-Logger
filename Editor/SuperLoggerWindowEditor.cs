@@ -292,12 +292,12 @@ public class SuperLoggerWindowEditor : EditorWindow
                     if (!string.IsNullOrEmpty(searchQuery) && !log.message.ToLower().Contains(searchQuery.ToLower()))
                         continue;
 
-                    GUIStyle style = new GUIStyle(EditorStyles.label) { richText = true };
+                    GUIStyle style = new GUIStyle(EditorStyles.label) { richText = true, alignment = TextAnchor.MiddleLeft };
                     Texture2D icon = debugIcon;
 
                     if (log.type == LogType.Error)
                     {
-                        style = new GUIStyle(EditorStyles.boldLabel) { richText = true };
+                        style = new GUIStyle(EditorStyles.boldLabel) { richText = true, alignment = TextAnchor.MiddleLeft };
                         icon = errorIcon;
                     }
                     else if (log.type == LogType.Warning)
@@ -305,10 +305,13 @@ public class SuperLoggerWindowEditor : EditorWindow
                         icon = warningIcon;
                     }
 
+                    GUIStyle boxStyle = new GUIStyle("box") { contentOffset = Vector2.up / 2 };
+
+                    GUILayout.BeginVertical(boxStyle);
                     EditorGUILayout.BeginHorizontal();
                     try
                     {
-                        if (GUILayout.Button(icon, GUILayout.Width(20), GUILayout.Height(20)))
+                        if (GUILayout.Button(icon, GUILayout.Width(25), GUILayout.Height(25)))
                         {
                             HandleLogClick(log);
                         }
@@ -320,6 +323,7 @@ public class SuperLoggerWindowEditor : EditorWindow
                     finally
                     {
                         EditorGUILayout.EndHorizontal();
+                        GUILayout.EndVertical();
                     }
                 }
             }
