@@ -251,10 +251,11 @@ namespace PugDev.SuperLogger
                 showDebugs = GUILayout.Toggle(showDebugs, new GUIContent($"{debugCount}", debugIcon), EditorStyles.toolbarButton);
 
                 // Add logGroupData multi-selection dropdown menu
-                if (GUILayout.Button("Groups", EditorStyles.toolbarPopup, GUILayout.Width(120)))
+                if (GUILayout.Button("Groups", EditorStyles.toolbarPopup, GUILayout.Width(80)))
                 {
-                    Rect rect = GUILayoutUtility.GetLastRect();
-                    MultiSelectDropdown.ShowDropdown(rect, logGroupData.Groups.ToList(), selectedGroups, (selected) =>
+                    GUI.FocusControl("Groups");
+                    Rect buttonRect = GUILayoutUtility.GetLastRect();
+                    MultiSelectDropdown.ShowDropdown(buttonRect, logGroupData.Groups.ToList(), selectedGroups, (selected) =>
                     {
                         selectedGroups = selected;
                         Repaint();
@@ -272,19 +273,6 @@ namespace PugDev.SuperLogger
             {
                 EditorGUILayout.EndHorizontal();
             }
-        }
-
-        private void ToggleGroupSelection(string group)
-        {
-            if (selectedGroups.Contains(group))
-            {
-                selectedGroups.Remove(group);
-            }
-            else
-            {
-                selectedGroups.Add(group);
-            }
-            Repaint();
         }
 
         private void ToggleClearOption(ref bool option)
@@ -580,7 +568,7 @@ namespace PugDev.SuperLogger
         private static List<string> selectedItems;
         private static System.Action<List<string>> onSelectionChanged;
 
-        public static void ShowDropdown(Rect rect, List<string> items, List<string> selectedItems, System.Action<List<string>> onSelectionChanged)
+        public static void ShowDropdown(Rect buttonRect, List<string> items, List<string> selectedItems, System.Action<List<string>> onSelectionChanged)
         {
             if (window == null)
             {
@@ -591,11 +579,19 @@ namespace PugDev.SuperLogger
             MultiSelectDropdown.selectedItems = selectedItems;
             MultiSelectDropdown.onSelectionChanged = onSelectionChanged;
 
-            window.ShowAsDropDown(rect, new Vector2(rect.width, items.Count * 20 + 10));
+            Vector2 screenPosition = GUIUtility.GUIToScreenPoint(new Vector2(buttonRect.x, buttonRect.y + buttonRect.height));
+            window.ShowAsDropDown(new Rect(screenPosition, Vector2.zero), new Vector2(200, items.Count * 20 + 10));
         }
 
         private void OnGUI()
         {
+            Vector2 scrollPosition = Vector2.zero;
+
+            if (items.Count > 10)
+            {
+                scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition, GUILayout.Height(200));
+            }
+
             for (int i = 0; i < items.Count; i++)
             {
                 bool isSelected = selectedItems.Contains(items[i]);
@@ -605,7 +601,16 @@ namespace PugDev.SuperLogger
                 {
                     if (newIsSelected)
                     {
-                        selectedItems.Add(items[i]);
+                        if (items[i] == "All")
+                        {
+                            selectedItems.Clear();
+                            selectedItems.Add("All");
+                        }
+                        else
+                        {
+                            selectedItems.Remove("All");
+                            selectedItems.Add(items[i]);
+                        }
                     }
                     else
                     {
@@ -614,6 +619,18 @@ namespace PugDev.SuperLogger
 
                     onSelectionChanged?.Invoke(selectedItems);
                 }
+            }
+
+            if (items.Count > 10)
+            {
+                EditorGUILayout.EndScrollView();
+            }
+
+            // Ensure "All" is selected if no other items are selected
+            if (selectedItems.Count == 0)
+            {
+                selectedItems.Add("All");
+                onSelectionChanged?.Invoke(selectedItems);
             }
         }
     }
