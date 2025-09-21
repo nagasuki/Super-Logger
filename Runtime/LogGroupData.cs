@@ -1,7 +1,8 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections.Generic;
 using System;
 using System.IO;
+using System.Text.RegularExpressions;
 
 #if UNITY_EDITOR
 using UnityEditor;
@@ -14,7 +15,7 @@ public class GroupColorEntry
     public Color Color;
 }
 
-public class LogGroupData : ScriptableObject
+public sealed class LogGroupData : ScriptableObject
 {
     [SerializeField, HideInInspector] private List<string> groups = new List<string> { "All", "General" };
     [SerializeField, HideInInspector]
@@ -26,6 +27,26 @@ public class LogGroupData : ScriptableObject
 
     public IReadOnlyList<string> Groups => groups.AsReadOnly();
     public IReadOnlyList<GroupColorEntry> GroupColorEntries => groupColorEntries.AsReadOnly();
+
+    // === Duplicate-safe helpers ===
+    private static string Sanitize(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return string.Empty;
+        // trim + collapse inner spaces to single space
+        var trimmed = name.Trim();
+        return Regex.Replace(trimmed, @"\s+", " ");
+    }
+
+    private bool ContainsGroup(string group)
+    {
+        var g = Sanitize(group);
+        for (int i = 0; i < groups.Count; i++)
+        {
+            if (string.Equals(groups[i], g, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
+    }
 
 #if UNITY_EDITOR
     public void GenerateStaticClass()
@@ -45,10 +66,10 @@ public class LogGroupData : ScriptableObject
             foreach (var group in groups)
             {
                 string safeGroupName = group.Replace(" ", "_");
-                var entry = groupColorEntries.Find(e => e.Group == group);
-                string color = ColorUtility.ToHtmlStringRGBA(entry.Color);
+                var entry = groupColorEntries.Find(e => string.Equals(e.Group, group, StringComparison.OrdinalIgnoreCase));
+                // string color = ColorUtility.ToHtmlStringRGBA(entry?.Color ?? Color.white); // <- เผื่อจะใช้ต่อภายหลัง
 
-                if (safeGroupName == "All")
+                if (string.Equals(safeGroupName, "All", StringComparison.Ordinal))
                 {
                     writer.WriteLine($"    private const string {safeGroupName} = \"{group}\";");
                 }
@@ -65,35 +86,44 @@ public class LogGroupData : ScriptableObject
     }
 #endif
 
-    // Method to add a group
-    public void AddGroup(string group, Color color)
+    // Add group (duplicate-safe)
+    public bool AddGroup(string group, Color color)
     {
-        if (!groups.Contains(group))
-        {
-            groups.Add(group);
-            groupColorEntries.Add(new GroupColorEntry { Group = group, Color = color });
-        }
+        var g = Sanitize(group);
+        if (string.IsNullOrEmpty(g)) return false;
+
+        // กันชื่อซ้ำแบบ case-insensitive
+        if (ContainsGroup(g)) return false;
+
+        groups.Add(g);
+        groupColorEntries.Add(new GroupColorEntry { Group = g, Color = color });
+        return true;
     }
 
-    // Method to remove a group
+    // Remove by name
     public void RemoveGroup(string group)
     {
-        if (groups.Contains(group) && group != "All" && group != "General")
+        var g = Sanitize(group);
+        if (string.Equals(g, "All", StringComparison.OrdinalIgnoreCase)) return;
+        if (string.Equals(g, "General", StringComparison.OrdinalIgnoreCase)) return;
+
+        if (ContainsGroup(g))
         {
-            groups.Remove(group);
-            groupColorEntries.RemoveAll(e => e.Group == group);
+            groups.RemoveAll(x => string.Equals(x, g, StringComparison.OrdinalIgnoreCase));
+            groupColorEntries.RemoveAll(e => string.Equals(e.Group, g, StringComparison.OrdinalIgnoreCase));
         }
     }
 
-    // Method to remove a group by index
+    // Remove by index
     public void RemoveGroupAt(int index)
     {
-        if (index >= 0 && index < groups.Count && groups[index] != "All" && groups[index] != "General")
-        {
-            string group = groups[index];
-            groups.RemoveAt(index);
-            groupColorEntries.RemoveAll(e => e.Group == group);
-        }
+        if (index < 0 || index >= groups.Count) return;
+        var g = groups[index];
+        if (string.Equals(g, "All", StringComparison.OrdinalIgnoreCase)) return;
+        if (string.Equals(g, "General", StringComparison.OrdinalIgnoreCase)) return;
+
+        groups.RemoveAt(index);
+        groupColorEntries.RemoveAll(e => string.Equals(e.Group, g, StringComparison.OrdinalIgnoreCase));
     }
 }
 
@@ -101,32 +131,107 @@ public class LogGroupData : ScriptableObject
 [CustomEditor(typeof(LogGroupData))]
 public class LogGroupDataEditor : Editor
 {
+    private string newGroupName = "NewGroup";
+    private Color newGroupColor = Color.white;
+
     public override void OnInspectorGUI()
     {
         LogGroupData logGroupData = (LogGroupData)target;
 
-        EditorGUILayout.LabelField("Groups", EditorStyles.boldLabel);
+        // === Add new group UI ===
+        EditorGUILayout.LabelField("Add New Group", EditorStyles.boldLabel);
 
-        EditorGUI.BeginDisabledGroup(true);
-        foreach (string group in logGroupData.Groups)
+        newGroupName = EditorGUILayout.TextField("Group Name", newGroupName);
+        newGroupColor = EditorGUILayout.ColorField("Color", newGroupColor);
+
+        // ตรวจซ้ำล่วงหน้า (preview) แบบ case-insensitive + trim
+        bool isDuplicate = false;
         {
-            EditorGUILayout.TextField(group);
+            string previewName = SanitizePreview(newGroupName);
+            foreach (var g in logGroupData.Groups)
+            {
+                if (string.Equals(g, previewName, StringComparison.OrdinalIgnoreCase))
+                {
+                    isDuplicate = true;
+                    break;
+                }
+            }
         }
-        EditorGUI.EndDisabledGroup();
+
+        using (new EditorGUI.DisabledScope(isDuplicate || string.IsNullOrWhiteSpace(newGroupName)))
+        {
+            if (GUILayout.Button("Add Group"))
+            {
+                Undo.RecordObject(logGroupData, "Add Group");
+                if (logGroupData.AddGroup(newGroupName, newGroupColor))
+                {
+                    EditorUtility.SetDirty(logGroupData);
+                    logGroupData.GenerateStaticClass();
+                }
+                else
+                {
+                    // เผื่อกรณีผู้ใช้กดทันทีตอนยังขึ้น Duplicate
+                    EditorUtility.DisplayDialog("Duplicate Group",
+                        $"Group \"{newGroupName}\" already exists.", "OK");
+                }
+            }
+        }
+
+        if (isDuplicate && !string.IsNullOrWhiteSpace(newGroupName))
+        {
+            EditorGUILayout.HelpBox("This group name already exists (case-insensitive).", MessageType.Warning);
+        }
 
         EditorGUILayout.Space();
 
+        // === Existing groups list ===
         EditorGUILayout.LabelField("Group Colors", EditorStyles.boldLabel);
-        foreach (var entry in logGroupData.GroupColorEntries)
+        var groupEntries = logGroupData.GroupColorEntries;
+
+        for (int i = 0; i < groupEntries.Count; i++)
         {
-            Color newColor = EditorGUILayout.ColorField(entry.Group, entry.Color);
+            if (i == 0) continue;
+
+            var entry = groupEntries[i];
+
+            EditorGUILayout.BeginHorizontal();
+
+            EditorGUILayout.LabelField(entry.Group, GUILayout.Width(140));
+
+            Color newColor = EditorGUILayout.ColorField(entry.Color);
             if (newColor != entry.Color)
             {
                 Undo.RecordObject(logGroupData, "Change Group Color");
                 entry.Color = newColor;
                 EditorUtility.SetDirty(logGroupData);
             }
+
+            if (!string.Equals(entry.Group, "All", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(entry.Group, "General", StringComparison.OrdinalIgnoreCase))
+            {
+                if (GUILayout.Button("X", GUILayout.Width(22)))
+                {
+                    Undo.RecordObject(logGroupData, "Remove Group");
+                    logGroupData.RemoveGroup(entry.Group);
+                    EditorUtility.SetDirty(logGroupData);
+                    logGroupData.GenerateStaticClass();
+                    GUIUtility.ExitGUI();
+                }
+            }
+            else
+            {
+                GUILayout.Space(26);
+            }
+
+            EditorGUILayout.EndHorizontal();
         }
+    }
+
+    private static string SanitizePreview(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return string.Empty;
+        var trimmed = name.Trim();
+        return Regex.Replace(trimmed, @"\s+", " ");
     }
 }
 #endif

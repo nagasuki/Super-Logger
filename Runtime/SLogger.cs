@@ -11,7 +11,7 @@ namespace PugDev.SuperLogger
         /// <param name="category">The category of the message. Defaults to "General".</param>
         public static void LogDebug(string message, string category = "General")
         {
-            Debug.Log($"[SLogger][{category}] {message}");
+            Debug.Log($"[Slogger][{category}] {message}");
         }
 
         /// <summary>
@@ -21,7 +21,7 @@ namespace PugDev.SuperLogger
         /// <param name="category">The category of the message. Defaults to "General".</param>
         public static void LogWarning(string message, string category = "General")
         {
-            Debug.LogWarning($"[SLogger][{category}] {message}");
+            Debug.LogWarning($"[Slogger][{category}] {message}");
         }
 
         /// <summary>
@@ -31,7 +31,7 @@ namespace PugDev.SuperLogger
         /// <param name="category">The category of the message. Defaults to "General".</param>
         public static void LogError(string message, string category = "General")
         {
-            Debug.LogError($"[SLogger][{category}] {message}");
+            Debug.LogError($"[Slogger][{category}] {message}");
         }
     }
 }
