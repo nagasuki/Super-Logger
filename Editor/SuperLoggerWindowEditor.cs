@@ -14,9 +14,9 @@ namespace PugDev.SuperLogger
 
         private class LogEntry
         {
-            public readonly string messageRich;   // มีเวลา + group มีสี
-            public readonly string messageKey;    // ใช้ collapse (group + detail แบบไม่มีเวลา)
-            public readonly string detailText;    // ข้อความจริง (condition เดิม)
+            public readonly string messageRich;
+            public readonly string messageKey;
+            public readonly string detailText;
             public readonly LogType type;
             public readonly string stackTrace;
             public readonly string group;
@@ -80,7 +80,7 @@ namespace PugDev.SuperLogger
         private bool showWarnings;
         private bool showDebugs;
         private bool autoScroll;
-        private bool collapseMode; // NEW
+        private bool collapseMode;
 
         private bool clearOnPlay;
         private bool clearOnBuild;
@@ -97,6 +97,8 @@ namespace PugDev.SuperLogger
         private LogEntry selectedLog;
         private float splitHeight;
         private float lastClickTime = 0f;
+        private float scrollViewHeight = 0f;
+        private float viewRectHeight = 0f;
 
         private GUIStyle styleLog, styleLogBold, styleBox, styleCountBadge;
 
@@ -232,8 +234,8 @@ namespace PugDev.SuperLogger
             DrawLogDetails();
             GUILayout.EndArea();
 
-            if (autoScroll && Event.current.type == EventType.Repaint)
-                scrollPosition.y = float.MaxValue;
+            //if (autoScroll && Event.current.type == EventType.Repaint)
+            //    scrollPosition.y = float.MaxValue;
         }
 
         #endregion
@@ -331,10 +333,8 @@ namespace PugDev.SuperLogger
             string keyText = $"[{group}] {condition}".Trim();
             string richTextCondition = $"[{time}] <color=#{colorHex}>[{group}]</color> {condition}";
 
-            // log ธรรมดา
             logs.Add(new LogEntry(richTextCondition, keyText, condition, type, stackTrace, group));
 
-            // collapse
             var ckey = BuildCollapseKey(type, group, keyText);
             if (collapsedMap.TryGetValue(ckey, out var c))
             {
@@ -349,7 +349,6 @@ namespace PugDev.SuperLogger
                 collapsedOrder.Add(ckey);
             }
 
-            // เพิ่ม group ใหม่อัตโนมัติถ้ายังไม่มี
             if (!logGroupData.Groups.Contains(group))
             {
                 if (logGroupData.AddGroup(group, Color.white))
@@ -365,6 +364,9 @@ namespace PugDev.SuperLogger
                 case LogType.Warning: warningCount++; break;
                 case LogType.Log: debugCount++; break;
             }
+
+            float scrollBottom = scrollViewHeight - viewRectHeight;
+            bool isAtBottom = scrollPosition.y >= scrollBottom - 1f;
 
             if (autoScroll)
                 scrollPosition.y = float.MaxValue;
@@ -400,7 +402,6 @@ namespace PugDev.SuperLogger
 
                 GUILayout.FlexibleSpace();
 
-                // Collapse toggle (NEW)
                 bool newCollapse = GUILayout.Toggle(collapseMode, "Collapse", EditorStyles.toolbarButton);
                 if (newCollapse != collapseMode)
                 {
@@ -471,16 +472,17 @@ namespace PugDev.SuperLogger
 
         private void DrawLogList()
         {
-            scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
+            // BeginScrollView คืน rect ของ content
+            scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition, GUILayout.ExpandHeight(true));
+            //scrollPosition = new Vector2(scrollPosition.x, scrollPosition.y);
+
             try
             {
                 if (!collapseMode)
                 {
-                    // Normal mode
                     for (int i = 0; i < logs.Count; i++)
                     {
                         var log = logs[i];
-
                         if (!PassTypeFilter(log.type)) continue;
                         if (!PassGroupFilter(log.group)) continue;
                         if (!PassSearch(log.detailText)) continue;
@@ -509,15 +511,12 @@ namespace PugDev.SuperLogger
                 }
                 else
                 {
-                    // Collapse mode
                     for (int idx = 0; idx < collapsedOrder.Count; idx++)
                     {
                         var key = collapsedOrder[idx];
                         if (!collapsedMap.TryGetValue(key, out var ce)) continue;
-
                         if (!PassTypeFilter(ce.type)) continue;
                         if (!PassGroupFilter(ce.group)) continue;
-
                         if (!PassSearch(ce.detailText)) continue;
 
                         var style = ce.type == LogType.Error ? styleLogBold : styleLog;
@@ -547,6 +546,9 @@ namespace PugDev.SuperLogger
             finally
             {
                 EditorGUILayout.EndScrollView();
+
+                //scrollViewHeight = contentRect.height;
+                viewRectHeight = position.height;
             }
         }
 
